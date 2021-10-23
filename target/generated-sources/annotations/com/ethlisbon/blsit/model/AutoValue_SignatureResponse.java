@@ -7,26 +7,39 @@ import javax.annotation.Generated;
 @Generated("com.google.auto.value.processor.AutoValueProcessor")
  final class AutoValue_SignatureResponse extends SignatureResponse {
 
-  private final String signature;
+  private final String message;
+  private final String key;
 
   private AutoValue_SignatureResponse(
-      String signature) {
-    if (signature == null) {
-      throw new NullPointerException("Null signature");
+      String message,
+      String key) {
+    if (message == null) {
+      throw new NullPointerException("Null message");
     }
-    this.signature = signature;
+    this.message = message;
+    if (key == null) {
+      throw new NullPointerException("Null key");
+    }
+    this.key = key;
   }
 
-  @JsonProperty(value = "signature")
+  @JsonProperty(value = "message")
   @Override
-  public String getSignature() {
-    return signature;
+  public String getMessage() {
+    return message;
+  }
+
+  @JsonProperty(value = "key")
+  @Override
+  public String getKey() {
+    return key;
   }
 
   @Override
   public String toString() {
     return "SignatureResponse{"
-        + "signature=" + signature
+        + "message=" + message + ", "
+        + "key=" + key
         + "}";
   }
 
@@ -37,7 +50,8 @@ import javax.annotation.Generated;
     }
     if (o instanceof SignatureResponse) {
       SignatureResponse that = (SignatureResponse) o;
-      return (this.signature.equals(that.getSignature()));
+      return (this.message.equals(that.getMessage()))
+           && (this.key.equals(that.getKey()));
     }
     return false;
   }
@@ -46,33 +60,46 @@ import javax.annotation.Generated;
   public int hashCode() {
     int h = 1;
     h *= 1000003;
-    h ^= this.signature.hashCode();
+    h ^= this.message.hashCode();
+    h *= 1000003;
+    h ^= this.key.hashCode();
     return h;
   }
 
   static final class Builder extends SignatureResponse.Builder {
-    private String signature;
+    private String message;
+    private String key;
     Builder() {
     }
     Builder(SignatureResponse source) {
-      this.signature = source.getSignature();
+      this.message = source.getMessage();
+      this.key = source.getKey();
     }
     @Override
-    public SignatureResponse.Builder setSignature(String signature) {
-      this.signature = signature;
+    public SignatureResponse.Builder setMessage(String message) {
+      this.message = message;
+      return this;
+    }
+    @Override
+    public SignatureResponse.Builder setKey(String key) {
+      this.key = key;
       return this;
     }
     @Override
     public SignatureResponse build() {
       String missing = "";
-      if (signature == null) {
-        missing += " signature";
+      if (message == null) {
+        missing += " message";
+      }
+      if (key == null) {
+        missing += " key";
       }
       if (!missing.isEmpty()) {
         throw new IllegalStateException("Missing required properties:" + missing);
       }
       return new AutoValue_SignatureResponse(
-          this.signature);
+          this.message,
+          this.key);
     }
   }
 
