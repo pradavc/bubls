@@ -1,14 +1,16 @@
 package com.ethlisbon.blsit.controllers;
 
-import org.springframework.stereotype.Controller;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
+@RestController
+@RequestMapping(path = "/v1")
 public class Signer {
 
-    @RequestMapping(value = "/test", method = RequestMethod.GET)
+    @PostMapping(path = "/test", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public String index() {
         return "hola mundo";
