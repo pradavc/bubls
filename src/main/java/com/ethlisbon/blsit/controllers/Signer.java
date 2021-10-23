@@ -27,7 +27,7 @@ public class Signer {
     public SignatureResponse test(@RequestBody SignatureRequest request) {
         SignatureResponse signatureResponse = SignatureResponse.builder()
                 .setMessage("signed" + request.getMessage())
-                .setKey("publicKey").build();
+                .setPublicKey("publicKey").build();
         return signatureResponse;
     }
 
@@ -39,7 +39,7 @@ public class Signer {
         BLSSignature signature = BLS.sign(secretKey, message);
         SignatureResponse signatureResponse = SignatureResponse.builder()
                 .setMessage(Base64.encode(signature.toSSZBytes()))
-                .setKey(Base64.encode(secretKey.toPublicKey().toSSZBytes())).build();
+                .setPublicKey(Base64.encode(secretKey.toPublicKey().toSSZBytes())).build();
         return signatureResponse;
     }
 }

@@ -11,8 +11,8 @@ import com.google.auto.value.AutoValue;
 public abstract class SignatureResponse {
     @JsonProperty("message")
     public abstract String getMessage();
-    @JsonProperty("key")
-    public abstract String getKey();
+    @JsonProperty("public_key")
+    public abstract String getPublicKey();
 
     public static SignatureResponse.Builder builder() {
         return new AutoValue_SignatureResponse.Builder();
@@ -22,8 +22,8 @@ public abstract class SignatureResponse {
     public abstract static class Builder {
         @JsonProperty("message")
         public abstract SignatureResponse.Builder setMessage(String message);
-        @JsonProperty("key")
-        public abstract SignatureResponse.Builder setKey(String key);
+        @JsonProperty("public_key")
+        public abstract SignatureResponse.Builder setPublicKey(String publicKey);
 
         public abstract SignatureResponse build();
     }
