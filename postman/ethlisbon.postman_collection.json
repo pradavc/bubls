@@ -1,0 +1,30 @@
+{
+	"info": {
+		"_postman_id": "481695c7-d7cc-4007-ac6f-1bb52dd0ba0b",
+		"name": "ethlisbon",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "test",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://{{server}}:{{port}}/api/v1/test",
+					"protocol": "http",
+					"host": [
+						"{{server}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"api",
+						"v1",
+						"test"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

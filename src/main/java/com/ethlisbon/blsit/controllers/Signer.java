@@ -1,5 +1,6 @@
 package com.ethlisbon.blsit.controllers;
 
+import com.ethlisbon.blsit.model.SignatureResponse;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,7 +13,8 @@ public class Signer {
 
     @PostMapping(path = "/test", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public String index() {
-        return "hola mundo";
+    public SignatureResponse index() {
+        SignatureResponse signatureResponse = SignatureResponse.builder().setMessage("message").build();
+        return signatureResponse;
     }
 }
