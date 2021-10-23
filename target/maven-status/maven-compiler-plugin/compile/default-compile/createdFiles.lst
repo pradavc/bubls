@@ -1,0 +1,7 @@
+com/ethlisbon/blsit/model/SignatureResponse$Builder.class
+com/ethlisbon/blsit/model/AutoValue_SignatureResponse.class
+com/ethlisbon/blsit/controllers/Signer.class
+com/ethlisbon/blsit/configuration/SecurityConfig.class
+com/ethlisbon/blsit/BlsitApplication.class
+com/ethlisbon/blsit/model/SignatureResponse.class
+com/ethlisbon/blsit/model/AutoValue_SignatureResponse$Builder.class
