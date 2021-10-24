@@ -1,5 +1,7 @@
 # BUBLS
 
+![alt text](https://github.com/xyzmap/bubls/blob/main/img/bubls.jpg?raw=true)
+
 Balanceable Untrusted BLS (BUBLS) allows untrusted hardware to do the validation work heavy lifting, while keeping the actual signing protected by a set of Guardiands.
 
 ## Inspiration
