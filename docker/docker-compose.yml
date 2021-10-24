@@ -1,0 +1,50 @@
+---
+version: '3.4'
+services:
+  teku:
+    environment:
+      - "JAVA_OPTS=-Xmx4g"
+    image: consensys/teku:latest
+    command: ["--network=prater", 
+              "--data-base-path=/opt/teku/data",
+              "--eth1-endpoint=https://goerli.infura.io/v3/4f505379fcd6420cbde2134da1a7bfa2",
+              "--validators-external-signer-url=http://web3signer:9003",
+              "--validators-external-signer-public-keys=0xa6f01f671d68c368d1227efa9dbd0dfccffe2b0e887ff2cd4043d13b7d33a6fb4c00064c13d699561cdd38b4cd8ec651",
+              "--p2p-port=9000",
+              "--rest-api-enabled=true",
+              "--rest-api-docs-enabled=true",
+              "--initial-state=https://1zsI7qAdewzL6j4yiCmHCTuVoEk:f68f69ffbfdf9379218ad8f4252b6e5c@eth2-beacon-prater.infura.io/eth/v1/debug/beacon/states/finalized"]
+    volumes:
+      - $PWD/teku:/opt/teku/data
+    user: root
+    ports:
+      - "9000:9000"
+      - "5051:5051"
+
+  web3signer:
+    build:
+      context: ./build
+    image: consensys/web3signer:develop
+    command: ["--key-store-path=/keyfiles",
+            "--http-listen-port=9003",
+            "--http-listen-host=0.0.0.0",
+            "--http-host-allowlist=*",
+            "eth2",
+            "--slashing-protection-enabled=false",
+            "--network=prater"]
+    volumes:
+      - $PWD/w3s/keyfiles:/keyfiles
+    ports:
+      - "9003:9000"
+  node1:
+    build:
+      context: ./build_blsit
+    image: blsit
+  node2:
+    build:
+      context: ./build_blsit
+    image: blsit
+  node3:
+    build:
+      context: ./build_blsit
+    image: blsit    
