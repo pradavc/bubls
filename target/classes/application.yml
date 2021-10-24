@@ -1,3 +1,6 @@
+server:
+  port : 8080
+
 keys:
-  public: thisismypublickey
+  public: 09b02f8a5fddd222ade4ea4528faefc399623af3f736be3c44f03e2df22fb792f3931a4d9573d333ca74343305762a753388c3422a86d98b713fc91c1ea04842
   private: 3ee2224386c82ffea477e2adf28a2929f5c349165a4196158c7f3a2ecca40f35
