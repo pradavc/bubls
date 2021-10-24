@@ -9,8 +9,10 @@ import com.google.auto.value.AutoValue;
 @JsonDeserialize(builder = AutoValue_SignatureResponse.Builder.class)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public abstract class SignatureResponse {
-    @JsonProperty("signature")
-    public abstract String getSignature();
+    @JsonProperty("message")
+    public abstract String getMessage();
+    @JsonProperty("public_key")
+    public abstract String getPublicKey();
 
     public static SignatureResponse.Builder builder() {
         return new AutoValue_SignatureResponse.Builder();
@@ -18,8 +20,10 @@ public abstract class SignatureResponse {
 
     @AutoValue.Builder
     public abstract static class Builder {
-        @JsonProperty("signature")
-        public abstract SignatureResponse.Builder setSignature(String signature);
+        @JsonProperty("message")
+        public abstract SignatureResponse.Builder setMessage(String message);
+        @JsonProperty("public_key")
+        public abstract SignatureResponse.Builder setPublicKey(String publicKey);
 
         public abstract SignatureResponse build();
     }
