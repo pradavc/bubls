@@ -1,0 +1,127 @@
+/*
+ * Copyright 2019 ConsenSys AG.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
+
+plugins {
+  id "de.undercouch.download" version "4.1.0"
+  id "com.google.osdetector" version "1.6.2"
+  id "io.gatling.gradle" version "3.6.0"
+}
+
+dependencies {
+
+  implementation 'org.springframework.boot:spring-boot-starter-web:2.5.5'
+    testImplementation project(":app")
+  testImplementation project(":core")
+
+  testImplementation 'org.apache.tuweni:tuweni-bytes'
+  testImplementation 'org.apache.tuweni:tuweni-units'
+
+  testRuntimeOnly 'javax.activation:activation'
+  testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+  testRuntimeOnly 'org.zeroturnaround:zt-exec'
+  testRuntimeOnly 'tech.pegasys:jblst'
+
+  testImplementation 'org.junit.jupiter:junit-jupiter-api'
+  testImplementation 'org.junit.jupiter:junit-jupiter-params'
+  testImplementation 'io.vertx:vertx-core'
+  testImplementation 'io.vertx:vertx-web'
+  testImplementation 'io.vertx:vertx-web-client'
+  testImplementation 'org.apache.logging.log4j:log4j-api'
+  testImplementation 'org.assertj:assertj-core'
+  testImplementation 'org.awaitility:awaitility'
+  testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+  testImplementation 'tech.pegasys.signers.internal:bls-keystore'
+  testImplementation 'tech.pegasys.signers.internal:signing-secp256k1-impl'
+  testImplementation 'tech.pegasys.teku.internal:bls'
+  testImplementation 'tech.pegasys.teku.internal:core'
+  testImplementation 'tech.pegasys.teku.internal:spec'
+  testImplementation (group: 'tech.pegasys.teku.internal', name: 'spec', classifier: 'test-fixtures')
+  testImplementation (group: 'tech.pegasys.teku.internal', name: 'bls', classifier: 'test-fixtures')
+  testImplementation 'tech.pegasys.teku.internal:serializer'
+  testImplementation 'tech.pegasys.teku.internal:unsigned'
+  testImplementation 'tech.pegasys.teku.internal:async'
+  testImplementation 'io.rest-assured:rest-assured'
+  testImplementation 'org.web3j:core'
+  testImplementation 'org.apache.tuweni:tuweni-bytes'
+  testImplementation 'com.github.arteam:simple-json-rpc-server'
+  testImplementation 'com.github.arteam:simple-json-rpc-client'
+  testImplementation 'org.flywaydb:flyway-core'
+  testImplementation 'com.opentable.components:otj-pg-embedded'
+  testImplementation 'io.rest-assured:rest-assured'
+  testImplementation 'org.jdbi:jdbi3-core'
+  testImplementation (group: 'tech.pegasys.signers.internal', name: 'keystorage-hashicorp', classifier: 'test-fixtures')
+  testImplementation (group: 'tech.pegasys.signers.internal', name: 'acceptance-tests', classifier: 'test-fixtures')
+  testImplementation (group: 'tech.pegasys.signers.internal', name: 'signing-secp256k1-impl', classifier: 'test-fixtures')
+  testImplementation (testFixtures(project(":slashing-protection")))
+  testImplementation (testFixtures(project(":core")))
+
+  gatlingImplementation configurations.getByName("testImplementation")
+}
+
+test.enabled = false
+
+def vaultBinary () {
+  switch (osdetector.os) {
+    case "windows":
+      return new File(buildDir, "vault.exe").toString()
+    default:
+      return new File(buildDir, "vault").toString()
+  }
+}
+
+def vaultDownloadUrl() {
+  // see gradle.properties for Hashicorp Vault URL
+  switch (osdetector.os) {
+    case "windows":
+      return "${hashicorpVaultUrl}/${hashicorpVaultVersion}/vault_${hashicorpVaultVersion}_windows_amd64.zip"
+      break
+    case "linux":
+      return "${hashicorpVaultUrl}/${hashicorpVaultVersion}/vault_${hashicorpVaultVersion}_linux_amd64.zip"
+      break
+    case "osx":
+      return "${hashicorpVaultUrl}/${hashicorpVaultVersion}/vault_${hashicorpVaultVersion}_darwin_amd64.zip"
+      break
+  }
+}
+
+task downloadVault(type: Download) {
+  src {
+    return vaultDownloadUrl()
+  }
+  dest new File(buildDir, "hashicorp.zip")
+  onlyIfModified true
+}
+
+task extractVault(dependsOn: downloadVault, type: Copy) {
+  from zipTree(downloadVault.dest)
+  into buildDir
+}
+
+task acceptanceTest(dependsOn: [
+  rootProject.installDist,
+  extractVault
+], type: Test) {
+  inputs.property "integration.date", LocalTime.now() // so it runs at every invocation
+
+  mustRunAfter rootProject.subprojects*.test
+  description = 'Runs Web3Signer acceptance tests.'
+  group = 'verification'
+
+  systemProperty 'acctests.runWeb3SignerAsProcess', 'true'
+  systemProperty 'vaultBinary', vaultBinary()
+
+  useJUnitPlatform()
+  // toggle to show standard out and standard error of the test JVM(s) on the console
+  testLogging.showStandardStreams = false
+}

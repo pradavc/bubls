@@ -1,0 +1,16 @@
+file:
+  /opt/web3signer/bin/web3signer:
+    exists: true
+    mode: "0755"
+    owner: root
+    group: root
+    filetype: file
+    contains: []
+port:
+  tcp:9000:
+    listening: true
+    ip:
+      - 0.0.0.0
+process:
+  java:
+    running: true

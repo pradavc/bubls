@@ -1,0 +1,588 @@
+/*
+ * Copyright 2018 ConsenSys AG.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
+
+
+import com.github.jk1.license.filter.LicenseBundleNormalizer
+import groovy.transform.Memoized
+import net.ltgt.gradle.errorprone.CheckSeverity
+import tech.pegasys.internal.license.reporter.GroupedLicenseHtmlRenderer
+
+import java.text.SimpleDateFormat
+
+buildscript {
+  repositories {
+    maven { url "https://artifacts.consensys.net/public/maven/maven/" }
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'tech.pegasys.internal.license.reporter:license-reporter:1.0.1'
+  }
+}
+
+plugins {
+  id 'java-test-fixtures'
+  id 'com.diffplug.spotless' version '5.12.5'
+  id 'com.github.ben-manes.versions' version '0.27.0'
+  id 'com.github.jk1.dependency-license-report' version '1.16'
+  id 'io.spring.dependency-management' version '1.0.9.RELEASE'
+  id 'me.champeau.gradle.jmh' version '0.5.0' apply false
+  id 'net.ltgt.errorprone' version '2.0.1'
+  id 'org.ajoberstar.grgit' version '4.1.0'
+}
+
+if (!JavaVersion.current().java11Compatible) {
+  throw new GradleException("Java 11 or later is required to build Web3Signer.\n" +
+  "  Detected version ${JavaVersion.current()}")
+}
+
+rootProject.version = calculatePublishVersion()
+def specificVersion = calculateVersion()
+def isDevelopBuild = rootProject.version.contains('develop')
+
+group = 'tech.pegasys.web3signer'
+
+defaultTasks 'build', 'checkLicense', 'javadoc'
+
+def buildAliases = ['dev': [
+    'spotlessApply',
+    'build',
+    'checkLicense',
+    'javadoc'
+  ]]
+
+def expandedTaskList = []
+gradle.startParameter.taskNames.each {
+  expandedTaskList << (buildAliases[it] ? buildAliases[it] : it)
+}
+gradle.startParameter.taskNames = expandedTaskList.flatten()
+
+// Gets a integer command argument, passed with -Pname=x, or the defaut if not provided.
+def _intCmdArg(name, defaultValue) {
+  return project.hasProperty(name) ? project.property(name) as int : defaultValue
+}
+
+def _intCmdArg(name) {
+  return _intCmdArg(name, null)
+}
+
+def _strListCmdArg(name, defaultValue) {
+  if (!project.hasProperty(name))
+    return defaultValue
+
+  return ((String)project.property(name)).tokenize(',')
+}
+
+def _strListCmdArg(name) {
+  return _strListCmdArg(name, null)
+}
+
+
+allprojects {
+  apply plugin: 'java-library'
+  apply plugin: 'io.spring.dependency-management'
+  apply plugin: 'jacoco'
+  apply plugin: 'net.ltgt.errorprone'
+  apply from: "${rootDir}/gradle/versions.gradle"
+
+  version = rootProject.version
+
+  jacoco { toolVersion = '0.8.6' }
+
+  task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+  }
+
+  task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+  }
+
+  sourceCompatibility = 11
+  targetCompatibility = 11
+
+  repositories {
+    jcenter()
+    mavenCentral()
+    maven { url "https://artifacts.consensys.net/public/maven/maven/" }
+    maven { url "https://artifacts.consensys.net/public/teku/maven/" }
+    maven { url "https://hyperledger.jfrog.io/artifactory/besu-maven" }
+    maven { url "https://hyperledger-org.bintray.com/besu-repo/" }
+    maven { url "https://jitpack.io" }
+  }
+
+  dependencies { errorprone("com.google.errorprone:error_prone_core") }
+
+  apply plugin: 'com.diffplug.spotless'
+  spotless {
+    java {
+      // This path needs to be relative to each project
+      target fileTree('.') {
+        include '**/*.java'
+        exclude '**/.gradle/**'
+        exclude '**/build/**'
+      }
+      removeUnusedImports()
+      // See gradle.properties for exports/opens flags required by JDK 16 and Google Java Format plugin
+      googleJavaFormat('1.10.0')
+      importOrder 'tech.pegasys', 'java', ''
+      trimTrailingWhitespace()
+      endWithNewline()
+      licenseHeaderFile "${rootDir}/gradle/spotless.java.license"
+    }
+    groovyGradle {
+      target '*.gradle'
+      greclipse().configFile(rootProject.file('gradle/formatter.properties'))
+      endWithNewline()
+    }
+
+    // Below this line are currently only license header tasks
+    format 'groovy', {
+      target '**/*.groovy'
+      licenseHeaderFile "${rootDir}/gradle/spotless.java.license", 'import'
+    }
+  }
+
+  tasks.withType(JavaCompile) {
+    options.compilerArgs += [
+      '-Xlint:unchecked',
+      '-Xlint:cast',
+      '-Xlint:rawtypes',
+      '-Xlint:overloads',
+      '-Xlint:divzero',
+      '-Xlint:finally',
+      '-Xlint:static',
+      '-Werror',
+    ]
+
+    options.errorprone {
+      excludedPaths = '.*/(generated/*.*|.*ReferenceTest_.*)'
+
+      // Our equals need to be symmetric, this checker doesn't respect that.
+      check('EqualsGetClass', CheckSeverity.OFF)
+      // We like to use futures with no return values.
+      check('FutureReturnValueIgnored', CheckSeverity.OFF)
+      // We use the JSR-305 annotations instead of the Google annotations.
+      check('ImmutableEnumChecker', CheckSeverity.OFF)
+      // This is a style check instead of an error-prone pattern.
+      check('UnnecessaryParentheses', CheckSeverity.OFF)
+      // Lazy impl causes excess CPU usage O(n) of non-final fiield when it should be O(1).
+      check('FieldCanBeFinal', CheckSeverity.OFF)
+      // Incorrectly fires when there are no java.time.* alternatives
+      check('PreferJavaTimeOverload', CheckSeverity.OFF)
+
+      check('InsecureCryptoUsage', CheckSeverity.WARN)
+      check('WildcardImport', CheckSeverity.WARN)
+    }
+
+    options.encoding = 'UTF-8'
+  }
+
+  /*
+   * Pass some system properties provided on the gradle command line to test executions for
+   * convenience.
+   *
+   * The properties passed are:
+   *   The meaning being that will be run only the tests for which the value passed as "include"
+   *   (which can be a java pattern) matches parts of the test name. Knowing that tests names for
+   *   reference tests are of the form:
+   *     <name>(-<milestone>([<variant>])?)?
+   *   where <name> is the test name as defined in the json file (usually the name of the json file
+   *   as well), <milestone> is the Ethereum milestone tested (not all test use it) and <variant>
+   *   is only use in some general state tests where for the same json file and same milestone,
+   *   multiple variant of that test are run. The variant is a simple number.
+   * - 'root.log.level' and 'evm.log.level': allow to control the log level used during the tests.
+   */
+  test {
+    jvmArgs = [
+      '-Xmx4g',
+      '-XX:-UseGCOverheadLimit',
+      // Mockito and jackson-databind do some strange reflection during tests.
+      // This suppresses an illegal access warning.
+      '--add-opens',
+      'java.base/java.util=ALL-UNNAMED',
+      '--add-opens',
+      'java.base/java.util.concurrent=ALL-UNNAMED'
+    ]
+    Set toImport = [
+      'root.log.level',
+      'evm.log.level'
+    ]
+    for (String name : toImport) {
+      if (System.getProperty(name) != null) {
+        systemProperty name, System.getProperty(name)
+      }
+    }
+
+    useJUnitPlatform()
+  }
+
+  javadoc {
+    options.addStringOption('Xdoclint:all', '-quiet')
+    options.addStringOption('Xwerror', '-html5')
+    options.encoding = 'UTF-8'
+  }
+
+}
+
+task deploy() {}
+
+licenseReport {
+  outputDir = "${buildDir}/reports/licenses"
+  excludes = [
+    'com.fasterxml.jackson:jackson-bom'
+  ]
+  allowedLicensesFile = new File("${rootDir}/gradle/license-report-config/allowed-licenses.json")
+  filters = [
+    new LicenseBundleNormalizer(["bundlePath": new File("${rootDir}/gradle/license-report-config/license-normalizer.json"), "createDefaultTransformationRules": true])
+  ]
+  renderers = [
+    new GroupedLicenseHtmlRenderer()
+  ]
+}
+
+subprojects {
+  tasks.withType(Test) {
+    // If GRADLE_MAX_TEST_FORKS is not set, use half the available processors
+    maxParallelForks = (System.getenv('GRADLE_MAX_TEST_FORKS') ?: (Runtime.runtime.availableProcessors().intdiv(2) ?: 1)).toInteger()
+  }
+
+  tasks.withType(JavaCompile) {
+    options.fork = true
+    options.incremental = true
+  }
+
+  sourceSets {
+    // test-support can be consumed as a library by other projects in their tests
+    testSupport {
+      java {
+        compileClasspath += main.output
+        runtimeClasspath += main.output
+        srcDir file('src/test-support/java')
+      }
+      resources.srcDir file('src/test-support/resources')
+    }
+    integrationTest {
+      java {
+        compileClasspath += main.output
+        runtimeClasspath += main.output
+        srcDir file('src/integration-test/java')
+      }
+      resources.srcDir file('src/integration-test/resources')
+    }
+  }
+
+  configurations {
+    testSupportImplementation.extendsFrom implementation
+    integrationTestImplementation.extendsFrom implementation
+    testSupportArtifacts
+  }
+
+  task testSupportJar (type: Jar) {
+    archiveBaseName = "${project.name}-support-test"
+    from sourceSets.testSupport.output
+  }
+
+  dependencies {
+    testImplementation sourceSets.testSupport.output
+    integrationTestImplementation sourceSets.testSupport.output
+  }
+
+  task integrationTest(type: Test, dependsOn:["compileTestJava"]){
+    group = "verification"
+    description = "Runs the Web3Signer integration tests"
+
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    outputs.upToDateWhen { false }
+
+    jvmArgs = ['-Xms512m', '-Xmx1g']
+
+    useJUnitPlatform()
+  }
+
+  if (file('src/jmh').directory) {
+    apply plugin: 'me.champeau.gradle.jmh'
+
+    jmh {
+      // Allows to control JMH execution directly from the command line. I typical execution may look
+      // like:
+      //    gradle jmh -Pf=2 -Pwi=3 -Pi=5 -Pinclude=MyBench
+      // which will run 2 forks with 3 warmup iterations and 5 normal ones for each, and will only
+      // run the benchmark matching 'MyBench' (a regexp).
+      warmupForks = _intCmdArg('wf')
+      warmupIterations = _intCmdArg('wi')
+      fork = _intCmdArg('f')
+      iterations = _intCmdArg('i')
+      benchmarkMode = _strListCmdArg('bm')
+      include = _strListCmdArg('include', [''])
+      humanOutputFile = project.file("${project.buildDir}/reports/jmh/results.txt")
+      resultFormat = 'JSON'
+    }
+
+    dependencies { jmh 'org.apache.logging.log4j:log4j-api' }
+  }
+}
+
+jar { enabled = false }
+
+apply plugin: 'application'
+mainClassName = "tech.pegasys.web3signer.Web3SignerApp"
+applicationDefaultJvmArgs = [
+  "-Dvertx.disableFileCPResolving=true",
+  // We shutdown log4j ourselves, as otherwise his shutdown hook runs before our own and whatever
+  // happens during shutdown is not logged.
+  "-Dlog4j.shutdownHookEnabled=false"
+]
+
+run {
+  args project.hasProperty("web3signer.run.args") ? project.property("web3signer.run.args").toString().split("\\s+") : []
+  doFirst {
+    applicationDefaultJvmArgs = applicationDefaultJvmArgs.collect{it.replace('WEB3SIGNER_HOME', "$buildDir/web3signer")}
+  }
+}
+
+startScripts {
+
+  def shortenWindowsClasspath = { line ->
+    line = line.replaceAll(/^set CLASSPATH=.*$/, "set CLASSPATH=%APP_HOME%/lib/*")
+  }
+
+  doLast {
+    unixScript.text = unixScript.text.replace('WEB3SIGNER_HOME', '\$APP_HOME')
+    windowsScript.text = windowsScript.text.replace('WEB3SIGNER_HOME', '%~dp0..')
+
+    // Prevent the error originating from the 8191 chars limit on Windows
+    windowsScript.text =
+      windowsScript
+      .readLines()
+      .collect(shortenWindowsClasspath)
+      .join('\r\n')
+  }
+}
+
+dependencies {
+  implementation 'org.springframework.boot:spring-boot-starter-web:2.5.5'
+  implementation project(':app')
+  errorprone 'com.google.errorprone:error_prone_core'
+}
+
+distributions {
+  main {
+    contents {
+      from("./LICENSE") { into "." }
+      from("build/reports/licenses") {
+        into "./licenses"
+        exclude "**/dependencies-without-allowed-license.json"
+        exclude "**/project-licenses-for-check-license-task.json"
+      }
+      from("./slashing-protection/src/main/resources/migrations") { into "./migrations" }
+    }
+  }
+}
+
+installDist { dependsOn checkLicense }
+
+distTar {
+  dependsOn checkLicense
+  doFirst {
+    delete fileTree(dir: 'build/distributions', include: '*.tar.gz')
+  }
+  compression = Compression.GZIP
+  archiveExtension = 'tar.gz'
+}
+
+distZip {
+  dependsOn checkLicense
+  doFirst {
+    delete fileTree(dir: 'build/distributions', include: '*.zip')
+  }
+}
+
+check.dependsOn checkLicense
+
+// rename the top level dir from web3signer-<version> to web3signer and this makes it really
+// simple for use in docker
+tasks.register("dockerDistUntar") {
+  dependsOn distTar
+  dependsOn distZip
+  def dockerBuildDir = "build/docker-web3signer/"
+  def distTarFile = distTar.outputs.files.singleFile
+  def distTarFileName = distTar.outputs.files.singleFile.name.replace(".tar.gz", "")
+
+  doFirst {
+    new File(dockerBuildDir).mkdir()
+    copy {
+      from tarTree(distTarFile)
+      into(dockerBuildDir)
+    }
+    file("${dockerBuildDir}/${distTarFileName}").renameTo("${dockerBuildDir}/web3signer")
+  }
+}
+
+task distDocker(type: Exec) {
+  dependsOn dockerDistUntar
+  def dockerBuildVersion = rootProject.version
+  def imageName = "consensys/web3signer"
+  def image = project.hasProperty('release.releaseVersion') ? "${imageName}:" + project.property('release.releaseVersion') : "${imageName}:${project.version}"
+  def dockerBuildDir = "build/docker-web3signer/"
+  workingDir "${dockerBuildDir}"
+
+  doFirst {
+    copy {
+      from file("${projectDir}/docker/Dockerfile")
+      into(workingDir)
+    }
+  }
+
+  executable "sh"
+  args "-c", "docker build --build-arg BUILD_DATE=${buildTime()} --build-arg VERSION=${dockerBuildVersion} --build-arg VCS_REF=${getCheckedOutGitCommitHash()} -t ${image} ."
+}
+
+task testDocker(type: Exec) {
+  dependsOn distDocker
+  def dockerReportsDir = "docker/reports/"
+  def imageName = "consensys/web3signer"
+  def image = project.hasProperty('release.releaseVersion') ? "${imageName}:" + project.property('release.releaseVersion') : "${imageName}:${project.version}"
+  workingDir "docker"
+
+  doFirst {
+    new File(dockerReportsDir).mkdir()
+  }
+
+  executable "sh"
+  args "-c", "bash test.sh ${image}"
+}
+
+task dockerUpload(type: Exec) {
+  dependsOn distDocker
+  doFirst {
+    def dockerBuildVersion = rootProject.version
+    def imageName = "consensys/web3signer"
+    def image = "${imageName}:${dockerBuildVersion}"
+    def cmd = "docker push '${image}'"
+
+    def additionalTags = []
+
+    if (project.hasProperty('branch') && project.property('branch') == 'master') {
+      additionalTags.add('develop')
+    }
+
+    if (!isDevelopBuild) {
+      additionalTags.add('latest')
+      additionalTags.add(version.split(/\./)[0..1].join('.'))
+    }
+
+    additionalTags.each { tag -> cmd += " && docker tag '${image}' '${imageName}:${tag.trim()}' && docker push '${imageName}:${tag.trim()}'" }
+    args "-c", "${cmd}"
+  }
+  executable "sh"
+}
+
+task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
+  additionalSourceDirs.from files(subprojects.sourceSets.main.allSource.srcDirs)
+  sourceDirectories.from files(subprojects.sourceSets.main.allSource.srcDirs)
+  classDirectories.from files(subprojects.sourceSets.main.output)
+  executionData.from files(subprojects.jacocoTestReport.executionData) //how to exclude some package/classes com.test.**
+  reports {
+    xml.enabled true
+    csv.enabled true
+    html.destination file("build/reports/jacocoHtml")
+  }
+  onlyIf = { true }
+  doFirst {
+    executionData = files(executionData.findAll { it.exists() })
+  }
+}
+
+configurations { annotationProcessor }
+
+// http://label-schema.org/rc1/
+// using the RFC3339 format "2016-04-12T23:20:50.52Z"
+def buildTime() {
+  def df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'")
+  df.setTimeZone(TimeZone.getTimeZone("UTC"))
+  return df.format(new Date())
+}
+
+// Calculate the version that this build would be published under (if it is published)
+// If this exact commit is tagged, use the tag
+// If this is on a release-* branch, use the most recent tag appended with +develop (e.g. 0.1.1-RC1+develop)
+// Otherwise, use develop
+def calculatePublishVersion() {
+  if (!grgit) {
+    return 'UNKNOWN'
+  }
+  def specificVersion = calculateVersion()
+  def isReleaseBranch = grgit.branch.current().name.startsWith('release-')
+  if (specificVersion.contains('+')) {
+    return isReleaseBranch ? "${specificVersion.substring(0, specificVersion.indexOf('+'))}+develop" : "develop"
+  }
+  return specificVersion
+}
+
+// Calculate the version that teku --version will report (among other places)
+// If this exact commit is tagged, use the tag
+// Otherwise use git describe --tags and replace the - after the tag with a +
+@Memoized
+def calculateVersion() {
+  if (!grgit) {
+    return 'UNKNOWN'
+  }
+  String version = grgit.describe(tags: true)
+  if (version == null) {
+    return "UNKNOWN+g${grgit.head().abbreviatedId}"
+  }
+  def versionPattern = ~/^(?<lastVersion>.*)-(?<devVersion>[0-9]+-g[a-z0-9]+)$/
+  def matcher = version =~ versionPattern
+  if (matcher.find()) {
+    return "${matcher.group("lastVersion")}+${matcher.group("devVersion")}"
+  }
+  return version
+}
+
+task printVersion() {
+  doFirst {
+    print "Specific version: ${specificVersion}  Publish version: ${project.version}"
+  }
+}
+
+def getCheckedOutGitCommitHash() {
+  def takeFromHash = 8
+  grgit ? grgit.head().id.take(takeFromHash) : 'UNKNOWN'
+}
+
+task releaseIntegrationTest(type: Test){
+  for(TaskContainer taskList : subprojects.tasks){
+    def subProjectIntegrationTask = taskList.findByName('integrationTest')
+
+    if (subProjectIntegrationTask != null) {
+      dependsOn subProjectIntegrationTask
+    }
+  }
+}
+
+task releaseAcceptanceTest(type: Test, dependsOn : ':acceptance-tests:acceptanceTest') {}
+
+task cloudsmithUpload {
+  dependsOn([
+    distTar,
+    distZip,
+  ])
+  doLast {
+    exec {
+      executable project.file("scripts/cloudsmith-upload.sh")
+      args rootProject.version, "${buildDir}/distributions"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+
+apply plugin: 'java-library'
+apply plugin: 'java-test-fixtures'
+
+jar {
+  archiveBaseName = 'web3signer-common'
+  manifest {
+    attributes(
+      'Specification-Title': archiveBaseName,
+      'Specification-Version': project.version,
+      'Implementation-Title': archiveBaseName,
+      'Implementation-Version': calculateVersion()
+      )
+  }
+}
+
+dependencies {
+
+  implementation 'org.springframework.boot:spring-boot-starter-web:2.5.5'
+    implementation 'org.apache.tuweni:tuweni-bytes'
+  implementation 'org.apache.tuweni:tuweni-net'
+
+  implementation 'com.fasterxml.jackson.core:jackson-databind'
+}

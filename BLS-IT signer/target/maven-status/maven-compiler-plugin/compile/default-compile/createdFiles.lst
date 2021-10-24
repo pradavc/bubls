@@ -1,0 +1,17 @@
+com/ethlisbon/blsit/controllers/Signer.class
+com/ethlisbon/blsit/model/AutoValue_SignatureRequest$Builder.class
+com/ethlisbon/blsit/controllers/bls/signer/BlsArtifactSignature.class
+com/ethlisbon/blsit/model/SignatureRequest.class
+com/ethlisbon/blsit/model/SignatureRequest$Builder.class
+com/ethlisbon/blsit/controllers/bls/signer/BlsArtifactSigner.class
+com/ethlisbon/blsit/controllers/bls/signer/ArtifactSignature.class
+com/ethlisbon/blsit/model/AutoValue_SignatureRequest.class
+com/ethlisbon/blsit/controllers/bls/signer/ArtifactSigner.class
+com/ethlisbon/blsit/controllers/bls/signer/IdentifierUtils.class
+com/ethlisbon/blsit/model/SignatureResponse$Builder.class
+com/ethlisbon/blsit/model/AutoValue_SignatureResponse.class
+com/ethlisbon/blsit/controllers/bls/signer/KeyType.class
+com/ethlisbon/blsit/configuration/SecurityConfig.class
+com/ethlisbon/blsit/BlsitApplication.class
+com/ethlisbon/blsit/model/SignatureResponse.class
+com/ethlisbon/blsit/model/AutoValue_SignatureResponse$Builder.class
